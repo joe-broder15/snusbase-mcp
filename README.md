@@ -139,7 +139,7 @@ CI (`.github/workflows/ci.yml`) installs Nix and runs `nix flake check`, which i
 
 ### Nix
 
-`flake.nix` is the dev environment: Python 3.12, uv, and ruff. uv still installs the locked dependencies from PyPI.
+`flake.nix` provides a Python 3.12 + uv shell (`UV_PYTHON_DOWNLOADS=never`). uv installs the locked dependencies from PyPI. `nix flake check` and `nix build` use [uv2nix](https://pyproject-nix.github.io/uv2nix/) so checks and the default package match `uv.lock` (including the `dev` dependency group for pytest and ruff).
 
 ```bash
 nix develop
@@ -154,7 +154,12 @@ Without entering the shell:
 nix develop -c uv run pytest
 ```
 
-`nix flake check` runs ruff and pytest with nixpkgs' Python packages, so the Nix sandbox does not download from PyPI. `uv run pytest` is the lockfile-faithful suite. If your Nix still treats flakes as experimental:
+```bash
+nix flake check
+nix build
+```
+
+If your Nix still treats flakes as experimental:
 
 ```bash
 nix --extra-experimental-features 'nix-command flakes' flake check
