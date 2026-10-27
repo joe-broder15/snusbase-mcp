@@ -14,7 +14,7 @@ the header.
 from collections.abc import Sequence
 from dataclasses import dataclass
 from os import environ
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -58,8 +58,6 @@ from snusbase_client.types import (
     SearchTypeName,
 )
 
-T = TypeVar("T", bound=BaseModel)
-
 
 class _Secret:
     """Holds the activation code. ``str`` and ``repr`` never reveal it."""
@@ -83,7 +81,7 @@ class _Secret:
 
 
 @dataclass(frozen=True, slots=True)
-class SnusbaseResponse(Generic[T]):
+class SnusbaseResponse[T: BaseModel]:
     """Parsed body plus the rate-limit headers from that response."""
 
     data: T
@@ -178,7 +176,7 @@ def _error_from_response(response: httpx.Response, rate_limit: RateLimit) -> Snu
     )
 
 
-def _parse_response(response: httpx.Response, model: type[T]) -> SnusbaseResponse[T]:
+def _parse_response[T: BaseModel](response: httpx.Response, model: type[T]) -> SnusbaseResponse[T]:
     rate_limit = parse_rate_limit(response.headers)
     if not response.is_success:
         if 300 <= response.status_code < 400:
@@ -496,7 +494,7 @@ class SnusbaseClient:
             authenticated=True,
         )
 
-    def _call(
+    def _call[T: BaseModel](
         self,
         operation: str,
         model: type[T],
@@ -674,7 +672,7 @@ class AsyncSnusbaseClient:
             authenticated=True,
         )
 
-    async def _call(
+    async def _call[T: BaseModel](
         self,
         operation: str,
         model: type[T],

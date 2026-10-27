@@ -40,6 +40,7 @@
         ruff = pkgs.runCommand "snusbase-client-ruff" { nativeBuildInputs = [ pkgs.ruff ]; } ''
           cd ${./.}
           ruff check --no-cache src tests
+          ruff format --check --no-cache src tests
           touch $out
         '';
 

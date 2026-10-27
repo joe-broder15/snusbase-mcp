@@ -20,7 +20,7 @@ Keep the activation code in `SNUSBASE_API_KEY` or another secret store. The clie
 
 ## Install
 
-Python 3.11 or newer. [uv](https://docs.astral.sh/uv/) manages the environment. Runtime dependencies are httpx and pydantic v2. pytest, respx, ruff, and openapi-spec-validator are in the `dev` dependency group.
+Python 3.12. [uv](https://docs.astral.sh/uv/) manages the environment. Runtime dependencies are httpx and pydantic v2. pytest, respx, ruff, and openapi-spec-validator are in the `dev` dependency group.
 
 ```bash
 uv sync --group dev
@@ -135,7 +135,7 @@ uv run ruff check
 uv run ruff format --check
 ```
 
-CI (`.github/workflows/ci.yml`) runs those three commands on Python 3.11 and 3.12 with `uv sync --frozen`.
+CI (`.github/workflows/ci.yml`) installs Nix and runs `nix flake check`, which is the single CI gate (ruff check + format, and pytest on Python 3.12).
 
 ### Nix
 
