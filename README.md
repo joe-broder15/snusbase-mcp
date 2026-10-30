@@ -2,11 +2,11 @@
 
 Snusbase MCP for your agent to be an OPSEC DEMON.
 
-Typed Python client and an OpenAPI 3.1 description of the public [Snusbase API](https://docs.snusbase.com/).
+Typed Python client for the public [Snusbase API](https://docs.snusbase.com/).
 
 The HTTP client lives in `src/snusbase_client`. This tree is laid out so an MCP server can be added later at `src/snusbase_mcp`. That server is not implemented here.
 
-The spec and the client follow the public docs and the [source mirror](https://github.com/snusbase/docs.snusbase.com). They do not add endpoints, parameters, or fields those docs do not describe. This is not an official Snusbase library. No API key is stored in this repository.
+The client follows the public docs and the [source mirror](https://github.com/snusbase/docs.snusbase.com). It does not add endpoints, parameters, or fields those docs do not describe. This is not an official Snusbase library. No API key is stored in this repository.
 
 ## Safety
 
@@ -20,7 +20,7 @@ Keep the activation code in `SNUSBASE_API_KEY` or another secret store. The clie
 
 ## Install
 
-Python 3.12. [uv](https://docs.astral.sh/uv/) manages the environment. Runtime dependencies are httpx and pydantic v2. pytest, respx, ruff, and openapi-spec-validator are in the `dev` dependency group.
+Python 3.12. [uv](https://docs.astral.sh/uv/) manages the environment. Runtime dependencies are httpx and pydantic v2. pytest, respx, and ruff are in the `dev` dependency group.
 
 ```bash
 uv sync --group dev
@@ -117,16 +117,6 @@ Documented limits, which Snusbase says can change (trust the headers when they d
 
 The marketing homepage says paying members get up to 2048 API requests per day. This client follows the API docs above, not that sentence.
 
-## OpenAPI
-
-`openapi/snusbase.yaml` describes all seven endpoints. `GET /data/stats` sets `security: []`. Every other operation uses the `Auth` apiKey scheme (`in: header`, `name: Auth`). Table-keyed maps use `additionalProperties`. Breach, combo, and hash rows are open objects.
-
-```bash
-uv run pytest tests/test_openapi.py
-```
-
-That test runs `openapi-spec-validator` and checks the spec against the client enums, paths, and published examples.
-
 ## Development
 
 ```bash
@@ -168,9 +158,8 @@ nix --extra-experimental-features 'nix-command flakes' flake check
 ## Layout
 
 ```
-openapi/snusbase.yaml    OpenAPI 3.1 spec
 src/snusbase_client/     import snusbase_client
-tests/                   pytest, respx, spec checks
+tests/                   pytest, respx
 pyproject.toml           project metadata and the uv dev dependency group
 uv.lock
 flake.nix
@@ -179,10 +168,10 @@ flake.lock
 
 ## Notes on the upstream docs
 
-These are ambiguities in the public docs as of the mirror README blob `535876c681d42db603e3f2fe72e6f13cb4e94542`. The spec comments record the same choices.
+These are ambiguities in the public docs as of the mirror README blob `535876c681d42db603e3f2fe72e6f13cb4e94542`. The client models follow the choices below.
 
 - The [homepage](https://snusbase.com/) says the API is included up to 2048 requests per day. The API docs say search and count are 2048 every 12 hours, combo lookup is 4096 every 12 hours, and other endpoints are 256 every 2 minutes.
-- `GET /data/stats` is documented as not requiring authentication, and its request example has no `Auth` header. The JavaScript and Python samples send `Auth` on every call, including stats, because the helper always sets the header. This client omits `Auth` on stats. Rate-limit headers are documented for authenticated requests, so the stats response in the spec does not declare them.
+- `GET /data/stats` is documented as not requiring authentication, and its request example has no `Auth` header. The JavaScript and Python samples send `Auth` on every call, including stats, because the helper always sets the header. This client omits `Auth` on stats. Rate-limit headers are documented for authenticated requests. The client still reads them if a stats response includes them.
 - `took` is a number in every example. The docs never say whether it is seconds, milliseconds, or another unit.
 - Search, combo, and hash say `group_by: false` disables grouping, and that a row missing the grouped column is appended to a `NO_{GROUP_BY}` object. They do not show that JSON. Whois docs are explicit: omit `group_by` for an object keyed by the input, pass a field name for arrays plus a `NO_{FIELD}` bucket, and pass `false` for a flat array. The client accepts an object of row arrays or a list for search, combo, and hash, and the three whois shapes.
 - Domain `group_by` examples mention `registrant.org` and `meta.source`. The sample record has `contact` and `meta.sources`. Both names are left open on the models.

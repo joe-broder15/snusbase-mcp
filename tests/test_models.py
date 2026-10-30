@@ -1,16 +1,28 @@
 """Response shapes described in prose, beyond the published JSON examples."""
 
+from typing import get_args
+
 from snusbase_client.models import (
+    ComboLookupRequest,
+    CountRequest,
     CountResponse,
     DomainDnsValue,
     DomainWhoisRecord,
     DomainWhoisResponse,
+    HashLookupRequest,
     IpWhoisRecord,
     IpWhoisResponse,
     SearchRequest,
     SearchResponse,
 )
-from snusbase_client.types import SearchType
+from snusbase_client.types import (
+    ComboLookupType,
+    ComboLookupTypeName,
+    HashLookupType,
+    HashLookupTypeName,
+    SearchType,
+    SearchTypeName,
+)
 
 
 def test_search_accepts_grouped_rows_and_a_flat_list() -> None:
@@ -162,3 +174,21 @@ def test_search_request_omits_unset_and_keeps_false() -> None:
         "group_by": False,
         "tables": [],
     }
+
+
+def test_type_literals_match_the_enums() -> None:
+    assert list(get_args(SearchTypeName)) == [member.value for member in SearchType]
+    assert list(get_args(ComboLookupTypeName)) == [member.value for member in ComboLookupType]
+    assert list(get_args(HashLookupTypeName)) == [member.value for member in HashLookupType]
+    assert "phone" not in SearchType
+
+
+def test_request_models_follow_the_documented_parameters() -> None:
+    assert "group_by" not in CountRequest.model_fields
+    assert "include_results" in CountRequest.model_fields
+    assert "include_results" not in SearchRequest.model_fields
+    assert "group_by" in SearchRequest.model_fields
+    assert "include_results" not in ComboLookupRequest.model_fields
+    assert "group_by" in ComboLookupRequest.model_fields
+    assert "include_results" not in HashLookupRequest.model_fields
+    assert "group_by" in HashLookupRequest.model_fields

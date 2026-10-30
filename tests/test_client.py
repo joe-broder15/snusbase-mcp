@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -20,6 +21,7 @@ from snusbase_client import (
     SnusbaseClient,
     SnusbaseRateLimitError,
     SnusbaseResponse,
+    __version__,
 )
 from snusbase_client.endpoints import DEFAULT_BASE_URL, ENV_API_KEY, OPERATIONS
 from snusbase_client.models import (
@@ -476,6 +478,28 @@ def test_base_url_timeout_and_close(router: Any) -> None:
         await async_client.aclose()
 
     asyncio.run(_closed())
+
+
+def test_public_methods_match_operations() -> None:
+    def public_methods(cls: type) -> set[str]:
+        return {
+            name
+            for name, value in vars(cls).items()
+            if callable(value) and not name.startswith("_")
+        }
+
+    assert public_methods(SnusbaseClient) == set(OPERATIONS) | {"close"}
+    assert public_methods(AsyncSnusbaseClient) == set(OPERATIONS) | {"aclose"}
+
+
+def test_package_version_matches_pyproject() -> None:
+    import tomllib
+
+    project = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())[
+        "project"
+    ]
+    assert project["version"] == __version__
+    assert project["name"] == "snusbase-client"
 
 
 def test_parse_rate_limit_is_case_insensitive() -> None:

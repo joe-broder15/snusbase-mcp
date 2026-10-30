@@ -1,5 +1,5 @@
 {
-  description = "Snusbase API client: OpenAPI spec and typed Python package";
+  description = "Typed Python client for the documented Snusbase API";
 
   # Pinned to nixos-unstable rev 3ec636362e1816bc2f0888fa0fa2c69f1bc9e504.
   # A branch URL needs the GitHub commits API; this rev is fetched as a tarball.
