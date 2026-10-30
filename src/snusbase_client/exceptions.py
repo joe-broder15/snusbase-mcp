@@ -8,7 +8,7 @@ maps to :class:`SnusbaseAPIError`. A missing or blank API key is
 
 from collections.abc import Sequence
 
-from snusbase_client.ratelimit import RateLimit
+from snusbase_client.models import RateLimit
 
 
 class SnusbaseError(Exception):

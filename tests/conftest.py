@@ -3,7 +3,7 @@
 import pytest
 import respx
 
-from snusbase_client.endpoints import ENV_API_KEY
+from snusbase_client.client import ENV_API_KEY
 
 
 @pytest.fixture(autouse=True)

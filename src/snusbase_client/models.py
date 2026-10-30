@@ -1,24 +1,61 @@
 """Pydantic models for documented Snusbase request and response bodies.
 
-Breach, combo, and hash rows are plain dicts: columns vary by table, and
-``GET /data/stats`` is what lists them. WHOIS records follow the published
-examples, with extra keys kept (``extra="allow"``) and no field marked required,
-because the docs do not say which keys are always present.
-
-Request models omit optional fields that are ``None`` so the server can apply
-its own defaults (``group_by`` of ``"db"`` on search, combo, and hash;
-``include_results`` of true on count).
+Breach, combo, hash, and WHOIS rows are plain dicts. Columns vary, and the
+docs do not say which keys are always present. Request models omit optional
+fields that are ``None`` so the server can apply its own defaults (``group_by``
+of ``"db"`` on search, combo, and hash; ``include_results`` of true on count).
 """
 
-from typing import Any
+from enum import StrEnum
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from snusbase_client.types import (
-    ComboLookupType,
-    HashLookupType,
-    SearchType,
-)
+
+class SearchType(StrEnum):
+    """``types`` values for ``POST /data/search`` and ``POST /data/count``.
+
+    ``SearchType.DOMAIN`` is the wire value ``_domain``.
+    """
+
+    EMAIL = "email"
+    USERNAME = "username"
+    LASTIP = "lastip"
+    PASSWORD = "password"
+    HASH = "hash"
+    NAME = "name"
+    DOMAIN = "_domain"
+
+
+SearchTypeName = Literal[
+    "email",
+    "username",
+    "lastip",
+    "password",
+    "hash",
+    "name",
+    "_domain",
+]
+
+
+class ComboLookupType(StrEnum):
+    """``types`` values for ``POST /tools/combo-lookup``."""
+
+    USERNAME = "username"
+    PASSWORD = "password"
+
+
+ComboLookupTypeName = Literal["username", "password"]
+
+
+class HashLookupType(StrEnum):
+    """``types`` values for ``POST /tools/hash-lookup``."""
+
+    HASH = "hash"
+    PASSWORD = "password"
+
+
+HashLookupTypeName = Literal["hash", "password"]
 
 
 class SearchRequest(BaseModel):
@@ -85,6 +122,26 @@ class DomainWhoisRequest(BaseModel):
     group_by: bool | str | None = None
 
 
+class RateLimit(BaseModel):
+    """Rate-limit headers from one response.
+
+    Documented on authenticated requests:
+
+    - ``X-Rate-Limit`` -> ``limit``
+    - ``X-Rate-Limit-Remaining`` -> ``remaining``
+    - ``X-Rate-Limit-Reset`` -> ``reset_seconds`` (seconds until the window resets)
+
+    Missing or non-integer header values are ``None``. ``GET /data/stats`` is
+    unauthenticated, so these are typically absent on that call.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    limit: int | None = None
+    remaining: int | None = None
+    reset_seconds: int | None = None
+
+
 class _Envelope(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -95,8 +152,12 @@ class _Envelope(BaseModel):
 # Grouped object (default and column grouping) or a flat list. Search, combo,
 # and hash examples only show the object form. ``group_by: false`` is documented
 # as disabling grouping but the payload is not shown; a list is accepted so that
-# response does not fail parsing. Whois docs do show the flat array.
+# response does not fail parsing.
 GroupedRows = dict[str, list[dict[str, Any]]] | list[dict[str, Any]]
+
+# WHOIS omits ``group_by`` to key one record by the input. A string groups into
+# arrays plus a ``NO_{FIELD}`` bucket. ``false`` is a flat list.
+WhoisRows = dict[str, dict[str, Any] | list[dict[str, Any]]] | list[dict[str, Any]]
 
 
 class SearchResponse(_Envelope):
@@ -150,138 +211,23 @@ class StatsResponse(BaseModel):
     features: StatsFeatures
 
 
-class IpWhoisRecord(BaseModel):
-    """One IP WHOIS record from the documented example.
-
-    ``as_`` is the JSON field ``as`` (``as`` is not a legal Python name).
-    """
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    query: str | None = None
-    continent: str | None = None
-    continentCode: str | None = None
-    country: str | None = None
-    countryCode: str | None = None
-    region: str | None = None
-    regionName: str | None = None
-    city: str | None = None
-    zip: str | None = None
-    lat: float | None = None
-    lon: float | None = None
-    timezone: str | None = None
-    isp: str | None = None
-    org: str | None = None
-    as_: str | None = Field(default=None, alias="as")
-    asname: str | None = None
-    mobile: bool | None = None
-    proxy: bool | None = None
-    hosting: bool | None = None
-
-
-IpWhoisResults = dict[str, IpWhoisRecord | list[IpWhoisRecord]] | list[IpWhoisRecord]
-
-
 class IpWhoisResponse(_Envelope):
-    """Body of ``POST /tools/ip-whois``.
+    """Body of ``POST /tools/ip-whois``. Records are plain dicts.
 
     Omitted ``group_by``: object keyed by IP, values are records.
     String ``group_by``: object of arrays, with a ``NO_{FIELD}`` bucket.
     ``group_by=False``: a flat list.
     """
 
-    results: IpWhoisResults
-
-
-class DomainDate(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    created: str | None = None
-    expires: str | None = None
-    updated: str | None = None
-
-
-class DomainRegistrar(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    name: str | None = None
-    handle: str | None = None
-
-
-class DomainMeta(BaseModel):
-    """Sample records use ``sources``. ``meta.source`` is only named as a group_by path."""
-
-    model_config = ConfigDict(extra="allow")
-
-    checked: str | None = None
-    updated: str | None = None
-    seen_czds: str | None = None
-    sources: list[str] | None = None
-
-
-class DomainDnsValue(BaseModel):
-    """MX-style ``dns.records[].values`` item (``priority``, ``server``)."""
-
-    model_config = ConfigDict(extra="allow")
-
-    priority: int | None = None
-    server: str | None = None
-
-
-class DomainDnsRecord(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    type: str | None = None
-    name: str | None = None
-    ttl: int | None = None
-    values: list[str | DomainDnsValue] | None = None
-
-
-class DomainDnsSecurity(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    signed: bool | None = None
-
-
-class DomainDns(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    security: DomainDnsSecurity | None = None
-    records: list[DomainDnsRecord] | None = None
-
-
-class DomainWhoisRecord(BaseModel):
-    """One domain WHOIS/RDAP record.
-
-    ``registrant`` is optional. The group_by docs mention ``registrant.org``;
-    the sample record puts party data under ``contact`` instead.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    domain: str | None = None
-    tld: str | None = None
-    date: DomainDate | None = None
-    nameserver: list[str] | None = None
-    registrar: DomainRegistrar | None = None
-    status: list[str] | None = None
-    contact: dict[str, Any] | None = None
-    registrant: dict[str, Any] | None = None
-    meta: DomainMeta | None = None
-    dns: DomainDns | None = None
-
-
-DomainWhoisResults = (
-    dict[str, DomainWhoisRecord | list[DomainWhoisRecord]] | list[DomainWhoisRecord]
-)
+    results: WhoisRows
 
 
 class DomainWhoisResponse(_Envelope):
-    """Body of ``POST /tools/domain-whois``.
+    """Body of ``POST /tools/domain-whois``. Records are plain dicts.
 
     HTTP 200 may still include ``errors`` for inputs that did not resolve.
     That does not raise; read ``errors`` on the model.
     """
 
-    results: DomainWhoisResults
+    results: WhoisRows
     errors: list[str] | None = None
