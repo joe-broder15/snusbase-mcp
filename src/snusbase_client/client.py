@@ -11,7 +11,7 @@ code samples send ``Auth`` on every call only because their helper always sets
 the header.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from os import environ
 from typing import Any
@@ -19,13 +19,6 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from snusbase_client.endpoints import (
-    AUTH_HEADER,
-    DEFAULT_BASE_URL,
-    DEFAULT_TIMEOUT_SECONDS,
-    ENV_API_KEY,
-    OPERATIONS,
-)
 from snusbase_client.exceptions import (
     SnusbaseAPIError,
     SnusbaseAuthError,
@@ -36,27 +29,49 @@ from snusbase_client.exceptions import (
 from snusbase_client.models import (
     ComboLookupRequest,
     ComboLookupResponse,
+    ComboLookupType,
+    ComboLookupTypeName,
     CountRequest,
     CountResponse,
     DomainWhoisRequest,
     DomainWhoisResponse,
     HashLookupRequest,
     HashLookupResponse,
-    IpWhoisRequest,
-    IpWhoisResponse,
-    SearchRequest,
-    SearchResponse,
-    StatsResponse,
-)
-from snusbase_client.ratelimit import RateLimit, parse_rate_limit
-from snusbase_client.types import (
-    ComboLookupType,
-    ComboLookupTypeName,
     HashLookupType,
     HashLookupTypeName,
+    IpWhoisRequest,
+    IpWhoisResponse,
+    RateLimit,
+    SearchRequest,
+    SearchResponse,
     SearchType,
     SearchTypeName,
+    StatsResponse,
 )
+
+DEFAULT_BASE_URL = "https://api.snusbase.com"
+DEFAULT_TIMEOUT_SECONDS = 60.0
+ENV_API_KEY = "SNUSBASE_API_KEY"
+AUTH_HEADER = "Auth"
+
+PATH_STATS = "/data/stats"
+PATH_SEARCH = "/data/search"
+PATH_COUNT = "/data/count"
+PATH_COMBO_LOOKUP = "/tools/combo-lookup"
+PATH_HASH_LOOKUP = "/tools/hash-lookup"
+PATH_IP_WHOIS = "/tools/ip-whois"
+PATH_DOMAIN_WHOIS = "/tools/domain-whois"
+
+# Public client method name -> (HTTP method, path).
+OPERATIONS: dict[str, tuple[str, str]] = {
+    "stats": ("GET", PATH_STATS),
+    "search": ("POST", PATH_SEARCH),
+    "count": ("POST", PATH_COUNT),
+    "combo_lookup": ("POST", PATH_COMBO_LOOKUP),
+    "hash_lookup": ("POST", PATH_HASH_LOOKUP),
+    "ip_whois": ("POST", PATH_IP_WHOIS),
+    "domain_whois": ("POST", PATH_DOMAIN_WHOIS),
+}
 
 
 class _Secret:
@@ -242,80 +257,28 @@ def _client_repr(
     return f"{kind}(base_url={base_url!r}, timeout={timeout!r}, api_key_set={api_key is not None})"
 
 
-def _search_payload(
-    terms: Sequence[str],
-    types: Sequence[SearchType | SearchTypeName],
-    *,
-    wildcard: bool | None,
-    group_by: bool | str | None,
-    tables: Sequence[str] | None,
-) -> dict[str, Any]:
-    return _payload(
-        SearchRequest,
-        terms=list(terms),
-        types=list(types),
-        wildcard=wildcard,
-        group_by=group_by,
-        tables=None if tables is None else list(tables),
+def parse_rate_limit(headers: Mapping[str, str]) -> RateLimit:
+    """Read rate-limit headers. Lookup is case-insensitive."""
+
+    def optional_int(name: str) -> int | None:
+        target = name.lower()
+        for key, value in headers.items():
+            if key.lower() != target:
+                continue
+            raw = value.strip()
+            if raw == "":
+                return None
+            try:
+                return int(raw)
+            except ValueError:
+                return None
+        return None
+
+    return RateLimit(
+        limit=optional_int("X-Rate-Limit"),
+        remaining=optional_int("X-Rate-Limit-Remaining"),
+        reset_seconds=optional_int("X-Rate-Limit-Reset"),
     )
-
-
-def _count_payload(
-    terms: Sequence[str],
-    types: Sequence[SearchType | SearchTypeName],
-    *,
-    wildcard: bool | None,
-    tables: Sequence[str] | None,
-    include_results: bool | None,
-) -> dict[str, Any]:
-    return _payload(
-        CountRequest,
-        terms=list(terms),
-        types=list(types),
-        wildcard=wildcard,
-        tables=None if tables is None else list(tables),
-        include_results=include_results,
-    )
-
-
-def _combo_payload(
-    terms: Sequence[str],
-    types: Sequence[ComboLookupType | ComboLookupTypeName],
-    *,
-    wildcard: bool | None,
-    group_by: bool | str | None,
-) -> dict[str, Any]:
-    return _payload(
-        ComboLookupRequest,
-        terms=list(terms),
-        types=list(types),
-        wildcard=wildcard,
-        group_by=group_by,
-    )
-
-
-def _hash_payload(
-    terms: Sequence[str],
-    types: Sequence[HashLookupType | HashLookupTypeName],
-    *,
-    wildcard: bool | None,
-    group_by: bool | str | None,
-) -> dict[str, Any]:
-    return _payload(
-        HashLookupRequest,
-        terms=list(terms),
-        types=list(types),
-        wildcard=wildcard,
-        group_by=group_by,
-    )
-
-
-def _ip_payload(terms: Sequence[str], *, group_by: bool | str | None) -> dict[str, Any]:
-    return _payload(IpWhoisRequest, terms=list(terms), group_by=group_by)
-
-
-def _domain_payload(terms: Sequence[str], *, group_by: bool | str | None) -> dict[str, Any]:
-    return _payload(DomainWhoisRequest, terms=list(terms), group_by=group_by)
 
 
 class SnusbaseClient:
@@ -381,12 +344,13 @@ class SnusbaseClient:
         return self._call(
             "search",
             SearchResponse,
-            _search_payload(
-                terms,
-                types,
+            _payload(
+                SearchRequest,
+                terms=list(terms),
+                types=list(types),
                 wildcard=wildcard,
                 group_by=group_by,
-                tables=tables,
+                tables=None if tables is None else list(tables),
             ),
             authenticated=True,
         )
@@ -408,11 +372,12 @@ class SnusbaseClient:
         return self._call(
             "count",
             CountResponse,
-            _count_payload(
-                terms,
-                types,
+            _payload(
+                CountRequest,
+                terms=list(terms),
+                types=list(types),
                 wildcard=wildcard,
-                tables=tables,
+                tables=None if tables is None else list(tables),
                 include_results=include_results,
             ),
             authenticated=True,
@@ -434,7 +399,13 @@ class SnusbaseClient:
         return self._call(
             "combo_lookup",
             ComboLookupResponse,
-            _combo_payload(terms, types, wildcard=wildcard, group_by=group_by),
+            _payload(
+                ComboLookupRequest,
+                terms=list(terms),
+                types=list(types),
+                wildcard=wildcard,
+                group_by=group_by,
+            ),
             authenticated=True,
         )
 
@@ -454,7 +425,13 @@ class SnusbaseClient:
         return self._call(
             "hash_lookup",
             HashLookupResponse,
-            _hash_payload(terms, types, wildcard=wildcard, group_by=group_by),
+            _payload(
+                HashLookupRequest,
+                terms=list(terms),
+                types=list(types),
+                wildcard=wildcard,
+                group_by=group_by,
+            ),
             authenticated=True,
         )
 
@@ -472,7 +449,7 @@ class SnusbaseClient:
         return self._call(
             "ip_whois",
             IpWhoisResponse,
-            _ip_payload(terms, group_by=group_by),
+            _payload(IpWhoisRequest, terms=list(terms), group_by=group_by),
             authenticated=True,
         )
 
@@ -490,7 +467,7 @@ class SnusbaseClient:
         return self._call(
             "domain_whois",
             DomainWhoisResponse,
-            _domain_payload(terms, group_by=group_by),
+            _payload(DomainWhoisRequest, terms=list(terms), group_by=group_by),
             authenticated=True,
         )
 
@@ -579,12 +556,13 @@ class AsyncSnusbaseClient:
         return await self._call(
             "search",
             SearchResponse,
-            _search_payload(
-                terms,
-                types,
+            _payload(
+                SearchRequest,
+                terms=list(terms),
+                types=list(types),
                 wildcard=wildcard,
                 group_by=group_by,
-                tables=tables,
+                tables=None if tables is None else list(tables),
             ),
             authenticated=True,
         )
@@ -602,11 +580,12 @@ class AsyncSnusbaseClient:
         return await self._call(
             "count",
             CountResponse,
-            _count_payload(
-                terms,
-                types,
+            _payload(
+                CountRequest,
+                terms=list(terms),
+                types=list(types),
                 wildcard=wildcard,
-                tables=tables,
+                tables=None if tables is None else list(tables),
                 include_results=include_results,
             ),
             authenticated=True,
@@ -624,7 +603,13 @@ class AsyncSnusbaseClient:
         return await self._call(
             "combo_lookup",
             ComboLookupResponse,
-            _combo_payload(terms, types, wildcard=wildcard, group_by=group_by),
+            _payload(
+                ComboLookupRequest,
+                terms=list(terms),
+                types=list(types),
+                wildcard=wildcard,
+                group_by=group_by,
+            ),
             authenticated=True,
         )
 
@@ -640,7 +625,13 @@ class AsyncSnusbaseClient:
         return await self._call(
             "hash_lookup",
             HashLookupResponse,
-            _hash_payload(terms, types, wildcard=wildcard, group_by=group_by),
+            _payload(
+                HashLookupRequest,
+                terms=list(terms),
+                types=list(types),
+                wildcard=wildcard,
+                group_by=group_by,
+            ),
             authenticated=True,
         )
 
@@ -654,7 +645,7 @@ class AsyncSnusbaseClient:
         return await self._call(
             "ip_whois",
             IpWhoisResponse,
-            _ip_payload(terms, group_by=group_by),
+            _payload(IpWhoisRequest, terms=list(terms), group_by=group_by),
             authenticated=True,
         )
 
@@ -668,7 +659,7 @@ class AsyncSnusbaseClient:
         return await self._call(
             "domain_whois",
             DomainWhoisResponse,
-            _domain_payload(terms, group_by=group_by),
+            _payload(DomainWhoisRequest, terms=list(terms), group_by=group_by),
             authenticated=True,
         )
 

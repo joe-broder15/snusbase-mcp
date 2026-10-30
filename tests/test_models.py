@@ -4,22 +4,17 @@ from typing import get_args
 
 from snusbase_client.models import (
     ComboLookupRequest,
+    ComboLookupType,
+    ComboLookupTypeName,
     CountRequest,
     CountResponse,
-    DomainDnsValue,
-    DomainWhoisRecord,
     DomainWhoisResponse,
     HashLookupRequest,
-    IpWhoisRecord,
+    HashLookupType,
+    HashLookupTypeName,
     IpWhoisResponse,
     SearchRequest,
     SearchResponse,
-)
-from snusbase_client.types import (
-    ComboLookupType,
-    ComboLookupTypeName,
-    HashLookupType,
-    HashLookupTypeName,
     SearchType,
     SearchTypeName,
 )
@@ -54,7 +49,7 @@ def test_count_omits_results_when_the_field_is_absent() -> None:
     assert parsed.results == {}
 
 
-def test_ip_whois_record_alias_and_grouping() -> None:
+def test_ip_whois_keeps_raw_rows() -> None:
     parsed = IpWhoisResponse.model_validate(
         {
             "took": 6.4,
@@ -70,10 +65,9 @@ def test_ip_whois_record_alias_and_grouping() -> None:
         }
     )
     record = parsed.results["12.34.56.78"]
-    assert isinstance(record, IpWhoisRecord)
-    assert record.as_ == "AS7018 AT&T Enterprises, LLC"
-    assert record.lat == 39.9612
-    assert record.mobile is False
+    assert record["as"] == "AS7018 AT&T Enterprises, LLC"
+    assert record["lat"] == 39.9612
+    assert record["mobile"] is False
 
     grouped = IpWhoisResponse.model_validate(
         {
@@ -85,14 +79,13 @@ def test_ip_whois_record_alias_and_grouping() -> None:
             },
         }
     )
-    assert grouped.results["NO_COUNTRY"][0].country is None
+    assert grouped.results["NO_COUNTRY"][0] == {}
 
     flat = IpWhoisResponse.model_validate({"took": 1, "size": 1, "results": [{"query": "1.2.3.4"}]})
-    assert isinstance(flat.results, list)
-    assert flat.results[0].query == "1.2.3.4"
+    assert flat.results == [{"query": "1.2.3.4"}]
 
 
-def test_domain_whois_mx_values_errors_and_loose_fields() -> None:
+def test_domain_whois_keeps_raw_rows_and_errors() -> None:
     parsed = DomainWhoisResponse.model_validate(
         {
             "took": 264.706,
@@ -127,31 +120,23 @@ def test_domain_whois_mx_values_errors_and_loose_fields() -> None:
         }
     )
     record = parsed.results["example.org"]
-    assert isinstance(record, DomainWhoisRecord)
-    assert record.contact is not None
-    assert record.contact["abuse"]["email"] == "abuse@example.org"
-    assert record.registrant == {"org": "Example"}
-    assert record.meta is not None
-    assert record.meta.model_dump()["source"] == "rdap"
-    assert record.dns is not None
-    assert record.dns.records is not None
-    mx_values = record.dns.records[1].values
-    assert mx_values is not None
-    assert isinstance(mx_values[0], DomainDnsValue)
-    assert mx_values[0].priority == 0
-    assert mx_values[0].server == "."
-    a_values = record.dns.records[0].values
-    assert a_values == ["192.0.2.1"]
+    assert record["contact"]["abuse"]["email"] == "abuse@example.org"
+    assert record["registrant"] == {"org": "Example"}
+    assert record["meta"]["source"] == "rdap"
+    mx = record["dns"]["records"][1]["values"][0]
+    assert mx["priority"] == 0
+    assert mx["server"] == "."
+    assert record["dns"]["records"][0]["values"] == ["192.0.2.1"]
     assert parsed.errors == ["missing.test: Likely not registered"]
 
     grouped = DomainWhoisResponse.model_validate(
         {"took": 1, "size": 1, "results": {"org": [{"tld": "org"}]}}
     )
-    assert grouped.results["org"][0].tld == "org"
+    assert grouped.results["org"][0]["tld"] == "org"
     flat = DomainWhoisResponse.model_validate(
         {"took": 1, "size": 1, "results": [{"domain": "example.org"}]}
     )
-    assert isinstance(flat.results, list)
+    assert flat.results == [{"domain": "example.org"}]
 
 
 def test_search_request_omits_unset_and_keeps_false() -> None:
