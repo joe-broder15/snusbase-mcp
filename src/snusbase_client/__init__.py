@@ -9,7 +9,6 @@ from snusbase_client.client import (
     DEFAULT_TIMEOUT_SECONDS,
     ENV_API_KEY,
     AsyncSnusbaseClient,
-    SnusbaseClient,
     SnusbaseResponse,
     parse_rate_limit,
 )
@@ -60,7 +59,6 @@ __all__ = [
     "SnusbaseAPIError",
     "SnusbaseAuthError",
     "SnusbaseBadRequestError",
-    "SnusbaseClient",
     "SnusbaseError",
     "SnusbaseRateLimitError",
     "SnusbaseResponse",

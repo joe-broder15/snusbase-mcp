@@ -1,4 +1,4 @@
-"""Sync and async clients for the documented Snusbase API.
+"""Async client for the documented Snusbase API.
 
 The activation code is taken from the ``api_key`` argument or, if that argument
 is omitted, from the ``SNUSBASE_API_KEY`` environment variable. It is sent in
@@ -281,231 +281,13 @@ def parse_rate_limit(headers: Mapping[str, str]) -> RateLimit:
     )
 
 
-class SnusbaseClient:
-    """Synchronous client. Use as a context manager so the connection pool closes.
+class AsyncSnusbaseClient:
+    """Asynchronous client. Use ``async with`` so the connection pool closes.
 
     ``timeout`` is forwarded to httpx (a float sets every phase, in seconds).
     The unit of the response ``took`` field is not documented; domain WHOIS in
     particular can be slow, so raise ``timeout`` for large batches.
     """
-
-    def __init__(
-        self,
-        api_key: str | None = None,
-        *,
-        base_url: str = DEFAULT_BASE_URL,
-        timeout: float | httpx.Timeout = DEFAULT_TIMEOUT_SECONDS,
-    ) -> None:
-        self.base_url = _check_base_url(base_url)
-        self.timeout = timeout
-        resolved = _resolve_api_key(api_key)
-        self._api_key = _Secret(resolved) if resolved is not None else None
-        self._http = httpx.Client(
-            base_url=self.base_url,
-            timeout=timeout,
-            follow_redirects=False,
-        )
-
-    def __repr__(self) -> str:
-        return _client_repr(type(self).__name__, self.base_url, self.timeout, self._api_key)
-
-    def __str__(self) -> str:
-        return repr(self)
-
-    def __enter__(self) -> "SnusbaseClient":
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self.close()
-
-    def close(self) -> None:
-        self._http.close()
-
-    def stats(self) -> SnusbaseResponse[StatsResponse]:
-        """``GET /data/stats``. Does not send the ``Auth`` header."""
-        return self._call("stats", StatsResponse, None, authenticated=False)
-
-    def search(
-        self,
-        terms: Sequence[str],
-        types: Sequence[SearchType | SearchTypeName],
-        *,
-        wildcard: bool | None = None,
-        group_by: bool | str | None = None,
-        tables: Sequence[str] | None = None,
-    ) -> SnusbaseResponse[SearchResponse]:
-        """``POST /data/search``.
-
-        Omit ``group_by`` to use the server default ``"db"``. Pass ``False`` to
-        disable grouping. ``tables`` limits which databases are searched and asks
-        for every column (View More). Rows can include plaintext credentials and
-        unsanitized HTML or exploit payloads. Treat every field as untrusted.
-        """
-        return self._call(
-            "search",
-            SearchResponse,
-            _payload(
-                SearchRequest,
-                terms=list(terms),
-                types=list(types),
-                wildcard=wildcard,
-                group_by=group_by,
-                tables=None if tables is None else list(tables),
-            ),
-            authenticated=True,
-        )
-
-    def count(
-        self,
-        terms: Sequence[str],
-        types: Sequence[SearchType | SearchTypeName],
-        *,
-        wildcard: bool | None = None,
-        tables: Sequence[str] | None = None,
-        include_results: bool | None = None,
-    ) -> SnusbaseResponse[CountResponse]:
-        """``POST /data/count``.
-
-        Omit ``include_results`` to use the server default ``true``. Pass
-        ``False`` to get only ``took`` and ``size``. There is no ``group_by``.
-        """
-        return self._call(
-            "count",
-            CountResponse,
-            _payload(
-                CountRequest,
-                terms=list(terms),
-                types=list(types),
-                wildcard=wildcard,
-                tables=None if tables is None else list(tables),
-                include_results=include_results,
-            ),
-            authenticated=True,
-        )
-
-    def combo_lookup(
-        self,
-        terms: Sequence[str],
-        types: Sequence[ComboLookupType | ComboLookupTypeName],
-        *,
-        wildcard: bool | None = None,
-        group_by: bool | str | None = None,
-    ) -> SnusbaseResponse[ComboLookupResponse]:
-        """``POST /tools/combo-lookup``. Types are ``username`` and ``password``.
-
-        Rows can include plaintext credentials and unsanitized HTML or exploit
-        payloads. Treat every field as untrusted.
-        """
-        return self._call(
-            "combo_lookup",
-            ComboLookupResponse,
-            _payload(
-                ComboLookupRequest,
-                terms=list(terms),
-                types=list(types),
-                wildcard=wildcard,
-                group_by=group_by,
-            ),
-            authenticated=True,
-        )
-
-    def hash_lookup(
-        self,
-        terms: Sequence[str],
-        types: Sequence[HashLookupType | HashLookupTypeName],
-        *,
-        wildcard: bool | None = None,
-        group_by: bool | str | None = None,
-    ) -> SnusbaseResponse[HashLookupResponse]:
-        """``POST /tools/hash-lookup``. Types are ``hash`` and ``password``.
-
-        Rows can include plaintext passwords and unsanitized HTML or exploit
-        payloads. Treat every field as untrusted.
-        """
-        return self._call(
-            "hash_lookup",
-            HashLookupResponse,
-            _payload(
-                HashLookupRequest,
-                terms=list(terms),
-                types=list(types),
-                wildcard=wildcard,
-                group_by=group_by,
-            ),
-            authenticated=True,
-        )
-
-    def ip_whois(
-        self,
-        terms: Sequence[str],
-        *,
-        group_by: bool | str | None = None,
-    ) -> SnusbaseResponse[IpWhoisResponse]:
-        """``POST /tools/ip-whois``.
-
-        Omit ``group_by`` for an object keyed by IP. A string groups by that
-        field. ``False`` returns a flat list. The default is not ``"db"``.
-        """
-        return self._call(
-            "ip_whois",
-            IpWhoisResponse,
-            _payload(IpWhoisRequest, terms=list(terms), group_by=group_by),
-            authenticated=True,
-        )
-
-    def domain_whois(
-        self,
-        terms: Sequence[str],
-        *,
-        group_by: bool | str | None = None,
-    ) -> SnusbaseResponse[DomainWhoisResponse]:
-        """``POST /tools/domain-whois``. At most 100 domains per request.
-
-        A 200 response can still list per-domain failures on ``data.errors``.
-        Omit ``group_by`` for an object keyed by the input domain.
-        """
-        return self._call(
-            "domain_whois",
-            DomainWhoisResponse,
-            _payload(DomainWhoisRequest, terms=list(terms), group_by=group_by),
-            authenticated=True,
-        )
-
-    def _call[T: BaseModel](
-        self,
-        operation: str,
-        model: type[T],
-        json_body: dict[str, Any] | None,
-        *,
-        authenticated: bool,
-    ) -> SnusbaseResponse[T]:
-        method, path = OPERATIONS[operation]
-        response = self._send(method, path, json_body=json_body, authenticated=authenticated)
-        return _parse_response(response, model)
-
-    def _send(
-        self,
-        method: str,
-        path: str,
-        *,
-        json_body: dict[str, Any] | None,
-        authenticated: bool,
-    ) -> httpx.Response:
-        if self._http.is_closed:
-            raise SnusbaseAPIError("Client is closed.")
-        kwargs = _request_kwargs(
-            self._api_key,
-            json_body=json_body,
-            authenticated=authenticated,
-        )
-        try:
-            return self._http.request(method, path, **kwargs)
-        except httpx.RequestError as exc:
-            raise SnusbaseAPIError(f"Request to {path} failed ({type(exc).__name__}).") from None
-
-
-class AsyncSnusbaseClient:
-    """Asynchronous client. Use ``async with`` so the connection pool closes."""
 
     def __init__(
         self,
@@ -552,7 +334,13 @@ class AsyncSnusbaseClient:
         group_by: bool | str | None = None,
         tables: Sequence[str] | None = None,
     ) -> SnusbaseResponse[SearchResponse]:
-        """Async ``POST /data/search``. See :meth:`SnusbaseClient.search`."""
+        """``POST /data/search``.
+
+        Omit ``group_by`` to use the server default ``"db"``. Pass ``False`` to
+        disable grouping. ``tables`` limits which databases are searched and asks
+        for every column (View More). Rows can include plaintext credentials and
+        unsanitized HTML or exploit payloads. Treat every field as untrusted.
+        """
         return await self._call(
             "search",
             SearchResponse,
@@ -576,7 +364,11 @@ class AsyncSnusbaseClient:
         tables: Sequence[str] | None = None,
         include_results: bool | None = None,
     ) -> SnusbaseResponse[CountResponse]:
-        """Async ``POST /data/count``. See :meth:`SnusbaseClient.count`."""
+        """``POST /data/count``.
+
+        Omit ``include_results`` to use the server default ``true``. Pass
+        ``False`` to get only ``took`` and ``size``. There is no ``group_by``.
+        """
         return await self._call(
             "count",
             CountResponse,
@@ -599,7 +391,11 @@ class AsyncSnusbaseClient:
         wildcard: bool | None = None,
         group_by: bool | str | None = None,
     ) -> SnusbaseResponse[ComboLookupResponse]:
-        """Async ``POST /tools/combo-lookup``. See :meth:`SnusbaseClient.combo_lookup`."""
+        """``POST /tools/combo-lookup``. Types are ``username`` and ``password``.
+
+        Rows can include plaintext credentials and unsanitized HTML or exploit
+        payloads. Treat every field as untrusted.
+        """
         return await self._call(
             "combo_lookup",
             ComboLookupResponse,
@@ -621,7 +417,11 @@ class AsyncSnusbaseClient:
         wildcard: bool | None = None,
         group_by: bool | str | None = None,
     ) -> SnusbaseResponse[HashLookupResponse]:
-        """Async ``POST /tools/hash-lookup``. See :meth:`SnusbaseClient.hash_lookup`."""
+        """``POST /tools/hash-lookup``. Types are ``hash`` and ``password``.
+
+        Rows can include plaintext passwords and unsanitized HTML or exploit
+        payloads. Treat every field as untrusted.
+        """
         return await self._call(
             "hash_lookup",
             HashLookupResponse,
@@ -641,7 +441,11 @@ class AsyncSnusbaseClient:
         *,
         group_by: bool | str | None = None,
     ) -> SnusbaseResponse[IpWhoisResponse]:
-        """Async ``POST /tools/ip-whois``. See :meth:`SnusbaseClient.ip_whois`."""
+        """``POST /tools/ip-whois``.
+
+        Omit ``group_by`` for an object keyed by IP. A string groups by that
+        field. ``False`` returns a flat list. The default is not ``"db"``.
+        """
         return await self._call(
             "ip_whois",
             IpWhoisResponse,
@@ -655,7 +459,11 @@ class AsyncSnusbaseClient:
         *,
         group_by: bool | str | None = None,
     ) -> SnusbaseResponse[DomainWhoisResponse]:
-        """Async ``POST /tools/domain-whois``. See :meth:`SnusbaseClient.domain_whois`."""
+        """``POST /tools/domain-whois``. At most 100 domains per request.
+
+        A 200 response can still list per-domain failures on ``data.errors``.
+        Omit ``group_by`` for an object keyed by the input domain.
+        """
         return await self._call(
             "domain_whois",
             DomainWhoisResponse,
