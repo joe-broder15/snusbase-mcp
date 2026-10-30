@@ -1,4 +1,4 @@
-"""Documented Snusbase paths. The OpenAPI spec is checked against ``OPERATIONS``."""
+"""Documented Snusbase paths."""
 
 DEFAULT_BASE_URL = "https://api.snusbase.com"
 DEFAULT_TIMEOUT_SECONDS = 60.0
