@@ -4,7 +4,7 @@ Snusbase MCP for your agent to be an OPSEC DEMON.
 
 Typed Python client for the public [Snusbase API](https://docs.snusbase.com/).
 
-The HTTP client lives in `src/snusbase_client`. This tree is laid out so an MCP server can be added later at `src/snusbase_mcp`. That server is not implemented here.
+The HTTP client lives in `src/snusbase_client`. The MCP server lives in `src/snusbase_mcp` and exposes two tools, `whois` and `search`.
 
 The client follows the public docs and the [source mirror](https://github.com/snusbase/docs.snusbase.com). It does not add endpoints, parameters, or fields those docs do not describe. This is not an official Snusbase library. No API key is stored in this repository.
 
@@ -20,7 +20,7 @@ Keep the activation code in `SNUSBASE_API_KEY` or another secret store. The clie
 
 ## Install
 
-Python 3.12. [uv](https://docs.astral.sh/uv/) manages the environment. Runtime dependencies are httpx and pydantic v2. pytest, respx, and ruff are in the `dev` dependency group.
+Python 3.12. [uv](https://docs.astral.sh/uv/) manages the environment. Runtime dependencies are httpx, pydantic v2, and the official `mcp` SDK. pytest, respx, and ruff are in the `dev` dependency group.
 
 ```bash
 uv sync --group dev
@@ -30,6 +30,22 @@ export SNUSBASE_API_KEY='sbYOUR_ACTIVATION_CODE'
 Codes issued after September 2021 start with `sb` plus 28 characters. The client does not check that shape.
 
 `uv sync` installs this checkout. From another project, `uv add --editable /path/to/this/checkout` installs the `snusbase-client` distribution. Import it as `snusbase_client`.
+
+## MCP server
+
+`snusbase-mcp` speaks MCP over stdio. The agent sees two tools:
+
+- `whois` takes IP addresses and domain names in one list. A value that `ipaddress.ip_address` accepts is sent to IP WHOIS. Anything else is sent as a domain. `group_by` is left unset, so records stay keyed by the term you sent. A domain response can include per-name errors. More than 100 domains is rejected before a request is sent.
+- `search` calls `POST /data/search` with `terms` and `types` only (`email`, `username`, `lastip`, `password`, `hash`, `name`, `_domain`). Results stay grouped by database. Every row field is untrusted and can contain a leaked password.
+
+Combo lookup, hash lookup, count, and stats stay on the client. They are not tools. The activation code is read from `SNUSBASE_API_KEY`. It is not a tool argument. A rate-limit error includes `reset_seconds` so the agent can wait.
+
+```bash
+export SNUSBASE_API_KEY='sbYOUR_ACTIVATION_CODE'
+uv run snusbase-mcp
+```
+
+Point the agent at that command.
 
 ## Usage
 
@@ -154,6 +170,7 @@ nix --extra-experimental-features 'nix-command flakes' flake check
 
 ```
 src/snusbase_client/     import snusbase_client
+src/snusbase_mcp/        snusbase-mcp stdio server
 tests/                   pytest, respx
 pyproject.toml           project metadata and the uv dev dependency group
 uv.lock

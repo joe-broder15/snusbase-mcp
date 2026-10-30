@@ -18,8 +18,12 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.27",
+    "mcp>=1.2",
     "pydantic>=2",
 ]
+
+[project.scripts]
+snusbase-mcp = "snusbase_mcp.server:main"
 
 [project.urls]
 Documentation = "https://docs.snusbase.com/"
@@ -37,6 +41,9 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/snusbase_client", "src/snusbase_mcp"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
@@ -50,4 +57,4 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["snusbase_client"]
+known-first-party = ["snusbase_client", "snusbase_mcp"]
