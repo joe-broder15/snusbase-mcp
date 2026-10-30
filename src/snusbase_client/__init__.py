@@ -4,7 +4,7 @@ This package is the HTTP layer. An MCP server can be added later beside it
 (``src/snusbase_mcp``); it is not part of this package.
 """
 
-from snusbase_client.client import AsyncSnusbaseClient, SnusbaseClient, SnusbaseResponse
+from snusbase_client.client import SnusbaseClient, SnusbaseResponse
 from snusbase_client.endpoints import DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECONDS, ENV_API_KEY
 from snusbase_client.exceptions import (
     SnusbaseAPIError,
@@ -40,7 +40,6 @@ __all__ = [
     "DEFAULT_BASE_URL",
     "DEFAULT_TIMEOUT_SECONDS",
     "ENV_API_KEY",
-    "AsyncSnusbaseClient",
     "ComboLookupResponse",
     "ComboLookupType",
     "ComboLookupTypeName",

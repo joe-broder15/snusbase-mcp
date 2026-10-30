@@ -36,52 +36,47 @@ Codes issued after September 2021 start with `sb` plus 28 characters. The client
 `count` reports how many rows match without returning the rows. Prefer it when you only need to know whether an address is exposed.
 
 ```python
+import asyncio
+
 from snusbase_client import (
     SearchType,
     SnusbaseClient,
     SnusbaseRateLimitError,
 )
 
-with SnusbaseClient() as client:
-    stats = client.stats()
-    print(stats.data.rows, len(stats.data.tables))
 
-    try:
-        counted = client.count(["me@example.com"], [SearchType.EMAIL])
-    except SnusbaseRateLimitError as exc:
-        print("retry after", exc.reset_seconds, "seconds")
-    else:
-        print(counted.data.size, counted.rate_limit.remaining)
+async def main() -> None:
+    async with SnusbaseClient() as client:
+        stats = await client.stats()
+        print(stats.data.rows, len(stats.data.tables))
+
+        try:
+            counted = await client.count(["me@example.com"], [SearchType.EMAIL])
+        except SnusbaseRateLimitError as exc:
+            print("retry after", exc.reset_seconds, "seconds")
+        else:
+            print(counted.data.size, counted.rate_limit.remaining)
+
+
+asyncio.run(main())
 ```
 
 Search returns the rows. With the default `group_by` of `"db"`, `results` is a dict of table name to a list of row dicts. `group_by=False` asks the server to disable grouping; the published examples do not show that JSON, and the client also accepts a bare list.
 
 ```python
-with SnusbaseClient() as client:
-    found = client.search(
-        ["me@example.com"],
-        [SearchType.EMAIL, SearchType.USERNAME],
-    )
-    results = found.data.results
-    if isinstance(results, dict):
-        for table, rows in results.items():
-            print(table, len(rows))
-```
+async def search() -> None:
+    async with SnusbaseClient() as client:
+        found = await client.search(
+            ["me@example.com"],
+            [SearchType.EMAIL, SearchType.USERNAME],
+        )
+        results = found.data.results
+        if isinstance(results, dict):
+            for table, rows in results.items():
+                print(table, len(rows))
 
-Async client, same methods:
-
-```python
-import asyncio
-from snusbase_client import AsyncSnusbaseClient, SearchType
-
-
-async def main() -> None:
-    async with AsyncSnusbaseClient() as client:
         whois = await client.domain_whois(["example.org"])
         print(whois.data.size, whois.data.errors)
-
-
-asyncio.run(main())
 ```
 
 | Method | Request | Auth header |
