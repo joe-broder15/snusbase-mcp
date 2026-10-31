@@ -153,6 +153,7 @@ nix --extra-experimental-features 'nix-command flakes' flake check
 ## Layout
 
 ```
+AGENTS.md                commands and rules for a coding agent
 src/snusbase_client/     import snusbase_client
 tests/                   pytest, respx
 pyproject.toml           project metadata and the uv dev dependency group
