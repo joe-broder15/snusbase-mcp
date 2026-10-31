@@ -6,7 +6,6 @@ CI_PATH = ROOT / ".github" / "workflows" / "ci.yml"
 PROJECT_PATH = ROOT / "pyproject.toml"
 AGENTS_PATH = ROOT / "AGENTS.md"
 
-_RUN_STEP = re.compile(r"(?m)^[ \t]*(?:-[ \t]*)?run:[ \t]*(.+?)\s*$")
 _REQUIRES_PYTHON = re.compile(r'(?m)^requires-python\s*=\s*"([^"]+)"')
 
 
@@ -16,11 +15,14 @@ def _agents_text() -> str:
 
 
 def test_agents_md_quotes_every_ci_run_step() -> None:
-    steps = _RUN_STEP.findall(CI_PATH.read_text())
-    assert steps, "ci.yml has no run steps"
+    run_lines = [line.strip() for line in CI_PATH.read_text().splitlines() if "run:" in line]
+    assert run_lines, "ci.yml has no run: line"
     agents = _agents_text()
-    missing = [step for step in steps if step not in agents]
-    assert missing == []
+    for line in run_lines:
+        assert line.startswith("- run:"), line
+        command = line.removeprefix("- run:").strip()
+        assert command
+        assert command in agents
 
 
 def test_agents_md_quotes_requires_python() -> None:
