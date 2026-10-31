@@ -56,7 +56,7 @@ Pinned via the `verification` dependency group in `pyproject.toml` (`hypothesis`
 | Blank constructor key | `_resolve_api_key` on whitespace-only strings |
 | Call sites | Every `SnusbaseClient` method named in `OPERATIONS` (`stats` must use `authenticated=False`; all others `authenticated=True`) |
 
-**Sync commit:** `16f1fcf75d6ef21055f17be807f6368b2c431658` (main at skill creation; covered code last confirmed to match these checks).
+**Sync commit:** `16f1fcf75d6ef21055f17be807f6368b2c431658` (verification harness + skill; covered client code last confirmed to match these checks).
 
 Move this sync commit forward **only after** you confirm the verification still describes the code at the new commit (re-read covered functions, rerun, and — if you changed the harness or properties — show a scratch break still fails). Do not bump it just because product tests passed.
 
